@@ -36,14 +36,14 @@ def test_validate_transaction(b, create_tx):
     assert block_maker.validate_tx(valid_tx.to_dict()) == valid_tx
 
 
-def test_create_block(b, user_vk):
+def test_create_block(b, user_pk):
     from bigchaindb.models import Transaction
     from bigchaindb.pipelines.block import BlockPipeline
 
     block_maker = BlockPipeline()
 
     for i in range(100):
-        tx = Transaction.create([b.me], [user_vk])
+        tx = Transaction.create([b.me], [([user_pk], 1)])
         tx = tx.sign([b.me_private])
         block_maker.create(tx)
 
@@ -53,7 +53,7 @@ def test_create_block(b, user_vk):
     assert len(block_doc.transactions) == 100
 
 
-def test_write_block(b, user_vk):
+def test_write_block(b, user_pk):
     from bigchaindb.models import Block, Transaction
     from bigchaindb.pipelines.block import BlockPipeline
 
@@ -61,7 +61,7 @@ def test_write_block(b, user_vk):
 
     txs = []
     for i in range(100):
-        tx = Transaction.create([b.me], [user_vk])
+        tx = Transaction.create([b.me], [([user_pk], 1)])
         tx = tx.sign([b.me_private])
         txs.append(tx)
 
@@ -73,14 +73,14 @@ def test_write_block(b, user_vk):
     assert expected == block_doc
 
 
-def test_duplicate_transaction(b, user_vk):
+def test_duplicate_transaction(b, user_pk):
     from bigchaindb.models import Transaction
     from bigchaindb.pipelines import block
     block_maker = block.BlockPipeline()
 
     txs = []
     for i in range(10):
-        tx = Transaction.create([b.me], [user_vk])
+        tx = Transaction.create([b.me], [([user_pk], 1)])
         tx = tx.sign([b.me_private])
         txs.append(tx)
 
@@ -103,12 +103,12 @@ def test_duplicate_transaction(b, user_vk):
     assert status != b.TX_IN_BACKLOG
 
 
-def test_delete_tx(b, user_vk):
+def test_delete_tx(b, user_pk):
     from bigchaindb.models import Transaction
     from bigchaindb.pipelines.block import BlockPipeline
     block_maker = BlockPipeline()
     for i in range(100):
-        tx = Transaction.create([b.me], [user_vk])
+        tx = Transaction.create([b.me], [([user_pk], 1)])
         tx = tx.sign([b.me_private])
         block_maker.create(tx)
         # make sure the tx appears in the backlog
@@ -130,13 +130,14 @@ def test_delete_tx(b, user_vk):
         assert status != b.TX_IN_BACKLOG
 
 
-def test_prefeed(b, user_vk):
+def test_prefeed(b, user_pk):
     import random
     from bigchaindb.models import Transaction
     from bigchaindb.pipelines.block import initial
 
     for i in range(100):
-        tx = Transaction.create([b.me], [user_vk], {'msg': random.random()})
+        tx = Transaction.create([b.me], [([user_pk], 1)],
+                                {'msg': random.random()})
         tx = tx.sign([b.me_private])
         b.write_transaction(tx)
 
@@ -156,7 +157,7 @@ def test_start(create_pipeline):
     assert pipeline == create_pipeline.return_value
 
 
-def test_full_pipeline(b, user_vk):
+def test_full_pipeline(b, user_pk):
     import random
     from bigchaindb.models import Block, Transaction
     from bigchaindb.pipelines.block import create_pipeline, get_changefeed
@@ -165,7 +166,8 @@ def test_full_pipeline(b, user_vk):
     # include myself here, so that some tx are actually assigned to me
     b.nodes_except_me = [b.me, 'aaa', 'bbb', 'ccc']
     for i in range(100):
-        tx = Transaction.create([b.me], [user_vk], {'msg': random.random()})
+        tx = Transaction.create([b.me], [([user_pk], 1)],
+                                {'msg': random.random()})
         tx = tx.sign([b.me_private])
 
         b.write_transaction(tx)
