@@ -2,7 +2,6 @@ import time
 from unittest.mock import patch
 
 from bigchaindb.common import crypto
-import rethinkdb as r
 from multipipes import Pipe, Pipeline
 
 from bigchaindb import Bigchain
@@ -170,8 +169,8 @@ def test_full_pipeline(b, user_pk):
 
     # only transactions from the invalid block should be returned to
     # the backlog
-    assert b.connection.run(r.table('backlog').count()) == 100
+    assert b.backend.count_backlog() == 100
     # NOTE: I'm still, I'm still tx from the block.
     tx_from_block = set([tx.id for tx in invalid_block.transactions])
-    tx_from_backlog = set([tx['id'] for tx in list(b.connection.run(r.table('backlog')))])
+    tx_from_backlog = set([tx['id'] for tx in list(b.backend.get_stale_transactions(0))])
     assert tx_from_block == tx_from_backlog
