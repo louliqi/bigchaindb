@@ -303,43 +303,24 @@ class TestBigchainApi(object):
 
     @pytest.mark.usefixtures('inputs')
     def test_genesis_block(self, b):
-        import rethinkdb as r
-        from bigchaindb.util import is_genesis_block
-        from bigchaindb.db.utils import get_conn
+        block = b.backend.get_genesis_block()
 
-        response = list(r.table('bigchain')
-                        .filter(is_genesis_block)
-                        .run(get_conn()))
-
-        assert len(response) == 1
-        block = response[0]
         assert len(block['block']['transactions']) == 1
         assert block['block']['transactions'][0]['transaction']['operation'] == 'GENESIS'
         assert block['block']['transactions'][0]['transaction']['fulfillments'][0]['input'] is None
 
     def test_create_genesis_block_fails_if_table_not_empty(self, b):
-        import rethinkdb as r
         from bigchaindb.common.exceptions import GenesisBlockAlreadyExistsError
-        from bigchaindb.util import is_genesis_block
-        from bigchaindb.db.utils import get_conn
 
         b.create_genesis_block()
 
         with pytest.raises(GenesisBlockAlreadyExistsError):
             b.create_genesis_block()
 
-        genesis_blocks = list(r.table('bigchain')
-                              .filter(is_genesis_block)
-                              .run(get_conn()))
-
-        assert len(genesis_blocks) == 1
-
     @pytest.mark.skipif(reason='This test may not make sense after changing the chainification mode')
     def test_get_last_block(self, b):
-        from bigchaindb.db.utils import get_conn
-
         # get the number of blocks
-        num_blocks = b.backend.count_blocks()
+        num_blocks = b.backend.count_blocks() 
 
         # get the last block
         last_block = b.get_last_block()
@@ -391,15 +372,10 @@ class TestBigchainApi(object):
         assert status == b.BLOCK_UNDECIDED
 
     def test_get_last_voted_block_returns_genesis_if_no_votes_has_been_casted(self, b):
-        import rethinkdb as r
-        from bigchaindb import util
         from bigchaindb.models import Block
-        from bigchaindb.db.utils import get_conn
 
         b.create_genesis_block()
-        genesis = list(r.table('bigchain')
-                       .filter(util.is_genesis_block)
-                       .run(get_conn()))[0]
+        genesis = b.backend.get_genesis_block()
         genesis = Block.from_dict(genesis)
         gb = b.get_last_voted_block()
         assert gb == genesis
@@ -462,21 +438,19 @@ class TestBigchainApi(object):
         assert b.get_last_voted_block().id == block_3.id
 
     def test_no_vote_written_if_block_already_has_vote(self, b):
-        import rethinkdb as r
         from bigchaindb.models import Block
-        from bigchaindb.db.utils import get_conn
 
         genesis = b.create_genesis_block()
         block_1 = dummy_block()
         b.write_block(block_1, durability='hard')
 
         b.write_vote(b.vote(block_1.id, genesis.id, True))
-        retrieved_block_1 = r.table('bigchain').get(block_1.id).run(get_conn())
+        retrieved_block_1 = b.get_block(block_1.id) 
         retrieved_block_1 = Block.from_dict(retrieved_block_1)
 
         # try to vote again on the retrieved block, should do nothing
         b.write_vote(b.vote(retrieved_block_1.id, genesis.id, True))
-        retrieved_block_2 = r.table('bigchain').get(block_1.id).run(get_conn())
+        retrieved_block_2 = b.get_block(block_1.id)
         retrieved_block_2 = Block.from_dict(retrieved_block_2)
 
         assert retrieved_block_1 == retrieved_block_2
@@ -546,7 +520,7 @@ class TestBigchainApi(object):
         b.write_transaction(tx)
 
         # retrieve the transaction
-        response = b.backend.get_stale_transactions(0).next()
+        response = list(b.backend.get_stale_transactions(0))[0]
 
         # check if the assignee is the current node
         assert response['assignee'] == b.me
@@ -570,11 +544,11 @@ class TestBigchainApi(object):
             b.write_transaction(tx)
 
         # retrieve the transaction
-        responses = list(b.backend.get_stale_transactions(0))
+        response = b.backend.get_stale_transactions(0)
 
         # check if the assignee is one of the _other_ federation nodes
-        for response in responses:
-            assert response['assignee'] in b.nodes_except_me
+        for tx in response:
+            assert tx['assignee'] in b.nodes_except_me
 
 
     @pytest.mark.usefixtures('inputs')
